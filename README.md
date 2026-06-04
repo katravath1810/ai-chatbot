@@ -1,3 +1,5 @@
+🌐 Live Demo: https://ai-chatbot-chi-ashen.vercel.app
+
 # AI Chatbot Project
 
 This project is a simple AI chatbot application that consists of a backend and a frontend. The backend is built using Node.js and Express, while the frontend is developed using React and Vite.
