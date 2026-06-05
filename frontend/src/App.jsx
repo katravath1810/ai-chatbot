@@ -1,107 +1,145 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
+import Login from './pages/Login';
 
-function App() {
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([]);
+const BACKEND = 'https://ai-chatbot-backend-4sjk.onrender.com';
+
+export default function App() {
+  const [user, setUser] = useState(null);
   const [chats, setChats] = useState([]);
-  const [currentChatId, setCurrentChatId] = useState(null);
+  const [currentChat, setCurrentChat] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { fetchChats(); }, []);
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    if (savedUser && token) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user) fetchChats();
+  }, [user]);
 
   const fetchChats = async () => {
-    try {
-      const res = await fetch("https://ai-chatbot-backend-4sjk.onrender.com/api/chats");
-      const data = await res.json();
-      setChats(data);
-    } catch (err) { console.error(err); }
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${BACKEND}/api/chats`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setChats(data);
   };
 
   const loadChat = async (chatId) => {
-    try {
-      const res = await fetch(`https://ai-chatbot-backend-4sjk.onrender.com/api/chats/${chatId}`);
-      const data = await res.json();
-      setCurrentChatId(chatId);
-      setMessages(data.messages.map(m => ({
-        text: m.content,
-        sender: m.role === "user" ? "user" : "ai"
-      })));
-    } catch (err) { console.error(err); }
-  };
-
-  const startNewChat = () => { setCurrentChatId(null); setMessages([]); };
-
-  const deleteChat = async (chatId, e) => {
-    e.stopPropagation();
-    await fetch(`https://ai-chatbot-backend-4sjk.onrender.com/api/chats/${chatId}`, { method: "DELETE" });
-    setChats(prev => prev.filter(c => c._id !== chatId));
-    if (currentChatId === chatId) startNewChat();
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${BACKEND}/api/chats/${chatId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setCurrentChat(chatId);
+    setMessages(data.messages || []);
   };
 
   const sendMessage = async () => {
-    if (!message.trim()) return;
-    const userText = message;
-    setMessages(prev => [...prev, { text: userText, sender: "user" }]);
-    setMessage("");
+    if (!input.trim()) return;
+    const token = localStorage.getItem('token');
+    const userMsg = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg, { role: 'assistant', content: '...' }]);
+    setInput('');
     setLoading(true);
-    try {
-      const res = await fetch("https://ai-chatbot-backend-4sjk.onrender.com/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText, chatId: currentChatId }),
-      });
-      const data = await res.json();
-      setMessages(prev => [...prev, { text: data.reply, sender: "ai" }]);
-      setCurrentChatId(data.chatId);
-      fetchChats();
-    } catch (err) {
-      setMessages(prev => [...prev, { text: "Error connecting to server.", sender: "ai" }]);
-    } finally { setLoading(false); }
+    const res = await fetch(`${BACKEND}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ message: input, chatId: currentChat })
+    });
+    const data = await res.json();
+    setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: data.reply }]);
+    setCurrentChat(data.chatId);
+    setLoading(false);
+    fetchChats();
   };
 
+  const logout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setChats([]);
+    setMessages([]);
+    setCurrentChat(null);
+  };
+
+  const deleteChat = async (chatId) => {
+    const token = localStorage.getItem('token');
+    await fetch(`${BACKEND}/api/chats/${chatId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    fetchChats();
+    if (currentChat === chatId) {
+      setCurrentChat(null);
+      setMessages([]);
+    }
+  };
+
+  if (!user) return <Login onLogin={setUser} />;
+
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#0f172a", color: "white", fontFamily: "sans-serif" }}>
-      <div style={{ width: "260px", background: "#1e293b", padding: "20px", display: "flex", flexDirection: "column", gap: "10px" }}>
-        <h2 style={{ margin: 0 }}>🤖 AI ChatBot</h2>
-        <button onClick={startNewChat} style={{ background: "#7c3aed", color: "white", border: "none", padding: "12px", borderRadius: "10px", cursor: "pointer", fontSize: "14px" }}>
+    <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: 'white' }}>
+      <div style={{ width: '260px', background: '#1e293b', padding: '16px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0 }}>🤖 AI ChatBot</h2>
+        </div>
+        <button onClick={() => { setCurrentChat(null); setMessages([]); }}
+          style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', padding: '10px', cursor: 'pointer', marginBottom: '16px' }}>
           + New Chat
         </button>
-        <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {chats.map(chat => (
             <div key={chat._id} onClick={() => loadChat(chat._id)}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", borderRadius: "8px", cursor: "pointer", background: currentChatId === chat._id ? "#334155" : "#1e293b", border: "1px solid #334155" }}>
-              <span style={{ fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.title}</span>
-              <button onClick={(e) => deleteChat(chat._id, e)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>🗑️</button>
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', borderRadius: '8px', cursor: 'pointer', marginBottom: '4px', background: currentChat === chat._id ? '#334155' : 'transparent' }}>
+              <span style={{ fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title}</span>
+              <button onClick={e => { e.stopPropagation(); deleteChat(chat._id); }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>🗑</button>
             </div>
           ))}
         </div>
-      </div>
-
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <div style={{ padding: "20px", background: "#1e293b", borderBottom: "1px solid #334155" }}>
-          <h2 style={{ margin: 0 }}>AI Assistant</h2>
+        <div style={{ borderTop: '1px solid #334155', paddingTop: '12px' }}>
+          <p style={{ color: '#94a3b8', fontSize: '14px', margin: '0 0 8px' }}>👤 {user.name}</p>
+          <button onClick={logout}
+            style={{ width: '100%', padding: '8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+            Logout
+          </button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
-          {messages.length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#64748b" }}>
-              <h1>Welcome 👋</h1><p>Ask me anything!</p>
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+          {messages.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#94a3b8', marginTop: '100px' }}>
+              <h2>AI Assistant</h2>
+              <p>Ask me anything!</p>
             </div>
-          ) : messages.map((msg, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: msg.sender === "user" ? "flex-end" : "flex-start" }}>
-              <div style={{ padding: "12px 18px", borderRadius: "18px", maxWidth: "70%", background: msg.sender === "user" ? "#7c3aed" : "#1e293b", whiteSpace: "pre-wrap" }}>
-                {msg.text}
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: '16px' }}>
+              <div style={{ maxWidth: '70%', padding: '12px 18px', borderRadius: '18px', background: msg.role === 'user' ? '#7c3aed' : '#1e293b', color: 'white', whiteSpace: 'pre-wrap' }}>
+                {msg.content}
               </div>
             </div>
           ))}
-          {loading && <div style={{ display: "flex", justifyContent: "flex-start" }}><div style={{ padding: "12px 18px", borderRadius: "18px", background: "#1e293b", color: "#64748b" }}>Thinking...</div></div>}
         </div>
-        <div style={{ padding: "20px", borderTop: "1px solid #334155", display: "flex", gap: "10px" }}>
-          <input value={message} onChange={e => setMessage(e.target.value)} onKeyPress={e => e.key === "Enter" && sendMessage()} placeholder="Ask anything..." style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "1px solid #334155", background: "#1e293b", color: "white", fontSize: "15px", outline: "none" }} />
-          <button onClick={sendMessage} disabled={loading} style={{ background: "#7c3aed", color: "white", border: "none", padding: "14px 28px", borderRadius: "12px", cursor: "pointer", fontSize: "15px" }}>Send</button>
+        <div style={{ padding: '16px', borderTop: '1px solid #1e293b', display: 'flex', gap: '8px' }}>
+          <input value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && sendMessage()}
+            placeholder="Ask anything..."
+            style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', background: '#1e293b', color: 'white', fontSize: '16px' }} />
+          <button onClick={sendMessage} disabled={loading}
+            style={{ padding: '12px 24px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}>
+            Send
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
-export default App;

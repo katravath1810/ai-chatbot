@@ -1,14 +1,12 @@
-import mongoose from "mongoose";
-
-const messageSchema = new mongoose.Schema({
-  role: { type: String, enum: ["user", "assistant"], required: true },
-  content: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now }
-});
+import mongoose from 'mongoose';
 
 const chatSchema = new mongoose.Schema({
-  title: { type: String, default: "New Chat" },
-  messages: [messageSchema],
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  title: { type: String, default: 'New Chat' },
+  messages: [{
+    role: { type: String, enum: ['user', 'assistant'] },
+    content: String
+  }]
 }, { timestamps: true });
 
-export default mongoose.model("Chat", chatSchema);
+export default mongoose.model('Chat', chatSchema);
