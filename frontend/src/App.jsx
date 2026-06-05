@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import Login from './pages/Login';
 import { useSpeech } from './hooks/useSpeech';
 
@@ -13,11 +16,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [speaking, setSpeaking] = useState(false);
+  const [copied, setCopied] = useState(null);
   const messagesEndRef = useRef(null);
 
-  const { listening, startListening, speak, stopSpeaking } = useSpeech((text) => {
-    setInput(text);
-  });
+  const { listening, startListening, speak, stopSpeaking } = useSpeech((text) => setInput(text));
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -60,7 +62,6 @@ export default function App() {
       setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: data.reply }]);
       setCurrentChat(data.chatId);
       fetchChats();
-      // Auto speak the reply
       setSpeaking(true);
       speak(data.reply);
       setSpeaking(false);
@@ -68,6 +69,12 @@ export default function App() {
       setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: 'Error. Please try again.' }]);
     }
     setLoading(false);
+  };
+
+  const copyMessage = (text, i) => {
+    navigator.clipboard.writeText(text);
+    setCopied(i);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const logout = () => {
@@ -84,6 +91,30 @@ export default function App() {
   };
 
   if (!user) return <Login onLogin={setUser} />;
+
+  const markdownComponents = {
+    code({ node, inline, className, children, ...props }) {
+      const match = /language-(\w+)/.exec(className || '');
+      return !inline && match ? (
+        <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" {...props}>
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      ) : (
+        <code style={{ background: '#3f3f3f', padding: '2px 6px', borderRadius: '4px', fontSize: '14px' }} {...props}>
+          {children}
+        </code>
+      );
+    },
+    p: ({ children }) => <p style={{ margin: '8px 0', lineHeight: '1.7' }}>{children}</p>,
+    ul: ({ children }) => <ul style={{ paddingLeft: '20px', margin: '8px 0' }}>{children}</ul>,
+    ol: ({ children }) => <ol style={{ paddingLeft: '20px', margin: '8px 0' }}>{children}</ol>,
+    li: ({ children }) => <li style={{ margin: '4px 0' }}>{children}</li>,
+    h1: ({ children }) => <h1 style={{ color: '#ececec', margin: '16px 0 8px' }}>{children}</h1>,
+    h2: ({ children }) => <h2 style={{ color: '#ececec', margin: '14px 0 6px' }}>{children}</h2>,
+    h3: ({ children }) => <h3 style={{ color: '#ececec', margin: '12px 0 4px' }}>{children}</h3>,
+    strong: ({ children }) => <strong style={{ color: '#fff', fontWeight: '600' }}>{children}</strong>,
+    blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid #19c37d', paddingLeft: '12px', color: '#8e8ea0', margin: '8px 0' }}>{children}</blockquote>,
+  };
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#212121', color: '#ececec', fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
@@ -111,14 +142,13 @@ export default function App() {
               {user.name[0].toUpperCase()}
             </div>
             <span style={{ fontSize: '14px', flex: 1 }}>{user.name}</span>
-            <button onClick={logout} style={{ background: 'none', border: 'none', color: '#8e8ea0', cursor: 'pointer', fontSize: '16px' }} title="Logout">↩</button>
+            <button onClick={logout} style={{ background: 'none', border: 'none', color: '#8e8ea0', cursor: 'pointer', fontSize: '16px' }}>↩</button>
           </div>
         </div>
       </div>
 
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #2f2f2f' }}>
           <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: 'none', border: 'none', color: '#ececec', cursor: 'pointer', fontSize: '20px', marginRight: '12px' }}>☰</button>
           <span style={{ fontSize: '16px', fontWeight: '600' }}>🤖 AI Assistant</span>
@@ -130,7 +160,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0' }}>
           {messages.length === 0 ? (
             <div style={{ textAlign: 'center', marginTop: '120px' }}>
@@ -140,19 +169,29 @@ export default function App() {
             </div>
           ) : (
             messages.map((msg, i) => (
-              <div key={i} style={{ padding: '12px 0', background: msg.role === 'assistant' ? '#2f2f2f' : 'transparent' }}>
+              <div key={i} style={{ padding: '16px 0', background: msg.role === 'assistant' ? '#2f2f2f' : 'transparent' }}>
                 <div style={{ maxWidth: '760px', margin: '0 auto', padding: '0 24px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: msg.role === 'user' ? '#19c37d' : '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>
                     {msg.role === 'user' ? user.name[0].toUpperCase() : '🤖'}
                   </div>
-                  <div style={{ flex: 1, lineHeight: '1.7', fontSize: '16px', color: '#ececec', paddingTop: '4px', whiteSpace: 'pre-wrap' }}>
+                  <div style={{ flex: 1, fontSize: '16px', color: '#ececec', paddingTop: '4px' }}>
                     {msg.content === '...' ? (
                       <span style={{ color: '#8e8ea0' }}>Thinking...</span>
-                    ) : msg.content}
+                    ) : msg.role === 'assistant' ? (
+                      <ReactMarkdown components={markdownComponents}>{msg.content}</ReactMarkdown>
+                    ) : (
+                      <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: '1.7' }}>{msg.content}</p>
+                    )}
                   </div>
                   {msg.role === 'assistant' && msg.content !== '...' && (
-                    <button onClick={() => speak(msg.content)} title="Read aloud"
-                      style={{ background: 'none', border: 'none', color: '#8e8ea0', cursor: 'pointer', fontSize: '16px', flexShrink: 0 }}>🔊</button>
+                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                      <button onClick={() => copyMessage(msg.content, i)} title="Copy"
+                        style={{ background: 'none', border: 'none', color: copied === i ? '#19c37d' : '#8e8ea0', cursor: 'pointer', fontSize: '14px' }}>
+                        {copied === i ? '✅' : '📋'}
+                      </button>
+                      <button onClick={() => speak(msg.content)} title="Read aloud"
+                        style={{ background: 'none', border: 'none', color: '#8e8ea0', cursor: 'pointer', fontSize: '14px' }}>🔊</button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -161,16 +200,15 @@ export default function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
         <div style={{ padding: '16px 24px 24px', background: '#212121' }}>
-          <div style={{ maxWidth: '760px', margin: '0 auto', background: '#2f2f2f', borderRadius: '16px', border: `1px solid ${listening ? '#19c37d' : '#3f3f3f'}`, display: 'flex', alignItems: 'flex-end', padding: '12px 16px', gap: '8px', transition: 'border-color 0.3s' }}>
+          <div style={{ maxWidth: '760px', margin: '0 auto', background: '#2f2f2f', borderRadius: '16px', border: `1px solid ${listening ? '#19c37d' : '#3f3f3f'}`, display: 'flex', alignItems: 'flex-end', padding: '12px 16px', gap: '8px' }}>
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
               placeholder={listening ? '🎤 Listening...' : 'Message AI Assistant...'}
               rows={1}
               style={{ flex: 1, background: 'transparent', border: 'none', color: '#ececec', fontSize: '16px', resize: 'none', outline: 'none', maxHeight: '200px', lineHeight: '1.5' }} />
             <button onClick={startListening} title="Voice input"
-              style={{ width: '36px', height: '36px', borderRadius: '8px', background: listening ? '#19c37d' : '#3f3f3f', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background 0.3s' }}>
+              style={{ width: '36px', height: '36px', borderRadius: '8px', background: listening ? '#19c37d' : '#3f3f3f', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <span style={{ fontSize: '16px' }}>{listening ? '⏹' : '🎤'}</span>
             </button>
             <button onClick={() => sendMessage()} disabled={loading || !input.trim()}
