@@ -11,7 +11,7 @@ function App() {
 
   const fetchChats = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/chats");
+      const res = await fetch("https://ai-chatbot-backend-4sjk.onrender.com/api/chats");
       const data = await res.json();
       setChats(data);
     } catch (err) { console.error(err); }
@@ -19,7 +19,7 @@ function App() {
 
   const loadChat = async (chatId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/chats/${chatId}`);
+      const res = await fetch(`https://ai-chatbot-backend-4sjk.onrender.com/api/chats/${chatId}`);
       const data = await res.json();
       setCurrentChatId(chatId);
       setMessages(data.messages.map(m => ({
@@ -33,7 +33,7 @@ function App() {
 
   const deleteChat = async (chatId, e) => {
     e.stopPropagation();
-    await fetch(`http://localhost:5000/api/chats/${chatId}`, { method: "DELETE" });
+    await fetch(`https://ai-chatbot-backend-4sjk.onrender.com/api/chats/${chatId}`, { method: "DELETE" });
     setChats(prev => prev.filter(c => c._id !== chatId));
     if (currentChatId === chatId) startNewChat();
   };
@@ -45,7 +45,7 @@ function App() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:5000/api/chat", {
+      const res = await fetch("https://ai-chatbot-backend-4sjk.onrender.com/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userText, chatId: currentChatId }),
